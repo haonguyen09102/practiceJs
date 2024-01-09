@@ -1,23 +1,30 @@
 import './App.scss';
 import Header from './components/header';
-import TableUser from './components/TableUser';
 import Container from 'react-bootstrap/Container';
 import { ToastContainer, toast } from 'react-toastify';
+import { useContext, useEffect } from 'react';
+import { UserContext } from './Context/Usercontext';
+import Approutes from './routes/Approutes';
 
 
 function App() {
 
+  const { user, loginContext } = useContext(UserContext);
+
+  useEffect(() => {
+    if (localStorage.getItem("token")) {
+      loginContext(localStorage.getItem("email"), localStorage.getItem("token"))
+    }
+  }, [])
 
 
   return (
     <>
 
       <div className='app-container'>
-
         <Header />
         <Container>
-
-          <TableUser />
+          <Approutes />
         </Container>
 
 
@@ -35,7 +42,7 @@ function App() {
         />
 
       </div>
-      /</>
+    </>
   );
 }
 

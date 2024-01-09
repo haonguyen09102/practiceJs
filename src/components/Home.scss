@@ -1,0 +1,14 @@
+.responsive-image-container {
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+    margin-top: 30px;
+
+    .responsive-image {
+        width: 100%;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+        border-radius: 10px;
+    }
+}

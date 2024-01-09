@@ -5,7 +5,12 @@ import ReactPaginate from 'react-paginate';
 import ModalAddnew from './ModalAddnew';
 import ModalEditUser from './ModalEditUser';
 import ModalConfirm from './ModalConfirm';
+import { CSVLink, CSVDownload } from "react-csv";
+import Papa from 'papaparse';
+import { toast } from 'react-toastify';
 import _ from "lodash";
+import { debounce } from "lodash"
+import './TableUser.scss'
 
 
 const TableUser = (props) => {
@@ -21,6 +26,14 @@ const TableUser = (props) => {
     const [isShowModalDelete, setisShowModalDelete] = useState(false)
 
     const [dataUserDelete, setdataUserDelete] = useState({})
+
+    const [sortBy, setsortBy] = useState("asc")
+
+    const [sortField, setsortField] = useState("id")
+
+    const [keyword, setkeyword] = useState("")
+
+    const [dataExport, setDataExport] = useState([])
 
     const handleClose = () => {
         setisShowmodalAddnew(false)
@@ -76,49 +89,201 @@ const TableUser = (props) => {
         setlistUsers(cloneListUsers)
     }
 
-    return (<>
-        <div className='my-3 add-new'>
-            <span><b>List user:</b></span>
-            <button className="btn btn-success" onClick={() => setisShowmodalAddnew(true)}>Add new user</button>
-        </div>
-        <Table striped bordered hover>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Email</th>
-                    <th>First Name</th>
-                    <th>Last Name</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {
-                    listUsers && listUsers.length > 0 &&
-                    listUsers.map((item, index) => {
-                        return (
-                            <tr key={`user - ${index}`}>
-                                <td>{item.id}</td>
-                                <td>{item.email}</td>
-                                <td>{item.first_name}</td>
-                                <td>{item.last_name}</td>
-                                <td>
-                                    <button
-                                        className='btn btn-warning mx-3'
-                                        onClick={() => handleEditUser(item)}
-                                    >
-                                        Edit</button>
-                                    <button
-                                        className='btn btn-danger'
-                                        onClick={() => handleDeleteUser(item)}
-                                    >Delete</button>
-                                </td>
-                            </tr>
-                        )
-                    })
-                }
+    const handleShort = (sortBy, sortField) => {
+        setsortBy(sortBy);
+        setsortField(sortField)
+        let cloneListUsers = _.cloneDeep(listUsers)
+        cloneListUsers = _.orderBy(cloneListUsers, [sortField], [sortBy]);
+        setlistUsers(cloneListUsers)
+    }
 
-            </tbody>
-        </Table>
+    const handleSearch = debounce((event) => {
+        let term = (event.target.value)
+        if (term) {
+            let cloneListUsers = _.cloneDeep(listUsers)
+            cloneListUsers = cloneListUsers.filter(item => item.email.includes(term))
+            setlistUsers(cloneListUsers)
+        } else {
+            getUsers(1)
+        }
+    }, 300)
+
+    const getUsersExport = (event, done) => {
+        let result = []
+        if (listUsers && listUsers.length > 0) {
+            result.push(["ID", "Email", "First Name", "Last Name"])
+            listUsers.map((item, index) => {
+                let arr = []
+                arr[0] = item.id
+                arr[1] = item.email
+                arr[2] = item.first_name
+                arr[3] = item.last_name
+                result.push(arr)
+            })
+
+            setDataExport(result)
+            done()
+        }
+    }
+
+    const handleImportCSV = (event) => {
+        if (event.target && event.target.files && event.target.files[0]) {
+            let file = event.target.files[0]
+
+            if (file.type !== "text/csv") {
+                toast.error('only csv files')
+                return
+            }
+            if (file.size > 1000) {
+                toast.error('csv file over capacity')
+                return
+            }
+            // Parse local CSV file
+            Papa.parse(file, {
+                // header: true,
+                complete: function (results) {
+                    let rawCSV = results.data
+                    if (rawCSV.length > 0) {
+                        if (rawCSV[0] && rawCSV[0].length === 3) {
+                            if (rawCSV[0][0] !== "email" || rawCSV[0][1] !== "first_name" || rawCSV[0][2] !== "last_name"
+                            ) {
+                                toast.error('Wrong format csv header')
+                            } else {
+                                let result = []
+
+                                rawCSV.map((item, index) => {
+                                    if (index > 0 && item.length === 3) {
+                                        let obj = {}
+                                        obj.email = item[0]
+                                        obj.first_name = item[1]
+                                        obj.last_name = item[2]
+                                        result.push(obj)
+
+                                    }
+                                })
+                                setlistUsers(result)
+
+                            }
+                        } else {
+                            toast.error('Wrong format csv file')
+                        }
+                    } else {
+                        toast.error('Not found data on csv file!')
+                    }
+
+                }
+            });
+        }
+
+    }
+
+
+    return (<>
+        <div className='my-3 add-new d-sm-flex'>
+            <span className=''><b>List user:</b></span>
+            <div className='grp-btn mt-sm-0 mt-2'>
+                <label htmlFor='test' className='btn btn-warning'>
+                    <i className="fa-solid fa-file-import"></i> Import</label>
+                <input
+                    id='test' type='file' hidden
+                    onChange={(event) => handleImportCSV(event)}
+                />
+
+                <CSVLink
+                    data={dataExport}
+                    filename={"user.csv"}
+                    className="btn btn-primary"
+                    asyncOnClick={true}
+                    onClick={(event, done) => getUsersExport(event, done)}
+                ><i className="fa-solid fa-file-arrow-down"></i> Export</CSVLink>
+
+                <button className="btn btn-success" onClick={() => setisShowmodalAddnew(true)}>
+                    <i className="fa-solid fa-circle-plus"></i> Add new
+                </button>
+            </div>
+        </div>
+        <div className='col-12 col-sm-4 my-3'>
+            <input
+                className='form-control'
+                placeholder='Search here'
+                // value={keyword}
+                onChange={(event) => handleSearch(event)}
+            />
+        </div>
+        <div className='customize-table'>
+            <Table striped bordered hover>
+                <thead>
+                    <tr>
+                        <th>
+                            <div className='sort-header'>
+                                <span>ID</span>
+                                <span>
+                                    <i
+                                        className="fa-solid fa-arrow-down"
+                                        onClick={() => handleShort("desc", "id")}
+                                    >
+                                    </i>
+                                    <i
+                                        className="fa-solid fa-arrow-up"
+                                        onClick={() => handleShort("asc", "id")}
+                                    >
+                                    </i>
+                                </span>
+                            </div>
+
+                        </th>
+                        <th>Email</th>
+                        <th>
+                            <div className='sort-header'>
+                                <span>First Name</span>
+                                <span>
+                                    <i
+                                        className="fa-solid fa-arrow-down"
+                                        onClick={() => handleShort("desc", "first_name")}
+                                    >
+                                    </i>
+                                    <i
+                                        className="fa-solid fa-arrow-up"
+                                        onClick={() => handleShort("asc", "first_name")}
+                                    >
+                                    </i>
+                                </span>
+                            </div>
+
+                        </th>
+                        <th >Last Name</th>
+                        <th >Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {
+                        listUsers && listUsers.length > 0 &&
+                        listUsers.map((item, index) => {
+                            return (
+                                <tr key={`user - ${index}`}>
+                                    <td>{item.id}</td>
+                                    <td>{item.email}</td>
+                                    <td>{item.first_name}</td>
+                                    <td>{item.last_name}</td>
+                                    <td>
+                                        <button
+                                            className='btn btn-warning mx-3'
+                                            onClick={() => handleEditUser(item)}
+                                        >
+                                            Edit</button>
+                                        <button
+                                            className='btn btn-danger'
+                                            onClick={() => handleDeleteUser(item)}
+                                        >Delete</button>
+                                    </td>
+                                </tr>
+                            )
+                        })
+                    }
+
+                </tbody>
+            </Table>
+        </div>
         <ReactPaginate
             breakLabel="..."
             nextLabel="next >"
